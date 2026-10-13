@@ -2,6 +2,9 @@ name: Compilar FocoLeitura direto do ZIP
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
 
 permissions:
   contents: read
