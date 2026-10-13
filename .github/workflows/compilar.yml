@@ -23,6 +23,11 @@ jobs:
           unzip -q FocoLeitura_2_Projeto_Android.zip -d projeto
           test -f projeto/settings.gradle.kts || (echo "O ZIP não contém o projeto Android esperado." && exit 1)
 
+      - name: Aplicar correções do FocoLeitura 2.1
+        run: |
+          python3 scripts/apply_focoleitura_fixes.py projeto
+          node --check projeto/app/src/main/assets/app.js
+
       - name: Configurar Java 17
         uses: actions/setup-java@v4
         with:
