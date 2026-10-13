@@ -62,6 +62,10 @@ addition='''\n/* Ajustes 2.1: saída sempre acessível mesmo em Modo Foco/tela c
 .focus-exit{position:absolute;top:12px;right:12px;z-index:20;background:#172a45;color:#fff;border:2px solid #80d5e4;box-shadow:0 1px 8px #0008;min-width:118px;min-height:48px}
 .reading:fullscreen .focus-exit{top:max(12px,env(safe-area-inset-top));right:max(12px,env(safe-area-inset-right))}
 .document-preview{max-height:33dvh;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;user-select:text;background:#0c1627;padding:13px;border:1px solid #405573;border-radius:12px;line-height:1.55;color:#edf5ff}
+.effect-soft{transition:background-color 3.3s ease}
+.effect-soft.effect-on{background-color:color-mix(in srgb,var(--reader-bg) 90%,var(--reader-accent) 10%)}
+.effect-soft #wordText{transition:color 3.3s ease,text-shadow 3.3s ease}
+.effect-soft.effect-on #wordText{color:color-mix(in srgb,var(--reader-text) 90%,var(--reader-accent) 10%);text-shadow:0 0 11px color-mix(in srgb,var(--reader-accent) 18%,transparent)}
 '''
 if addition.strip() not in style:css.write_text(style+addition,encoding='utf-8')
 
