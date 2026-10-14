@@ -39,3 +39,7 @@ A apresentação utiliza transições suaves e opcionais: não oferece flashes e
 ## Manutenção
 
 O histórico do Git preserva o ZIP legado e o antigo script de patch, que **não são mais necessários** na branch atual. Para novas alterações, edite os arquivos fonte e valide a execução do Actions.
+
+## Duração das transições visuais
+
+Em **Configurações → Estímulo visual dinâmico**, é possível ajustar o tempo da mudança de cor entre **0,1 e 10 segundos** (barra deslizante ou valor numérico). A preferência fica salva localmente, inclusive quando o modo de efeitos estiver desligado. O intervalo entre mudanças permanece independente e respeita um mínimo de 8 segundos; quando a duração é longa, o intervalo efetivo aumenta para que a transição termine. Abaixo de 1 segundo, apenas uma alteração discreta de cor do texto é permitida, sem mudança do fundo. O consentimento para os efeitos continua obrigatório a cada documento e a preferência do sistema por movimento reduzido desativa os efeitos.

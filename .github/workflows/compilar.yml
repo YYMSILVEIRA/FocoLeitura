@@ -40,6 +40,8 @@ jobs:
           node --check app/src/main/assets/app.js
           node --check app/src/main/assets/core.js
           node --check app/src/main/assets/pdf-compat.js
+      - name: Testar limites e temporização dos estímulos
+        run: node --test tests/effects.test.cjs
       - name: Compilar APK Android
         run: ./gradlew --no-daemon --stacktrace :app:assembleDebug
       - name: Publicar APK

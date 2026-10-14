@@ -24,5 +24,17 @@ function groupDuration(tokens,start,end,wpm,mode){const base=60000/clamp(wpm,RAN
 function wordOffsets(items){let off=0;return items.map((w,i)=>{const start=off;off+=w.text.length+(i===items.length-1?0:1);return {start,end:start+w.text.length}})}
 function offsetWordIndex(offsets,char){const ix=offsets.findIndex(o=>char>=o.start&&char<o.end);if(ix>=0)return ix;const next=offsets.findIndex(o=>char<o.end);return next<0?Math.max(0,offsets.length-1):next;}
 function suggestSpeed(wpm,selfRating){const rating=clamp(selfRating,1,5);const factor=rating<=2?.9:rating===5?1.05:1;return Math.round(clamp(Math.round(wpm*factor/10)*10,60,900));}
-root.FocoCore={tokenizeText,groupFor,groupText,sentenceStart,paragraphStart,groupDuration,wordOffsets,offsetWordIndex,clamp,suggestSpeed};
+function effectDuration(seconds) {
+ const raw=Number(seconds);
+ const safe=Number.isFinite(raw)?raw:3.3;
+ return Math.round(Math.min(10,Math.max(0.1,safe))*10)/10;
+}
+// Uma mudança de cor nunca se repete em alta frequência; uma transição longa
+// precisa terminar antes que a próxima comece.
+function effectiveEffectInterval(interval,duration) {
+ const raw=Number(interval);
+ const base=Number.isFinite(raw)?Math.min(30,Math.max(8,raw)):10;
+ return Math.max(base,Math.ceil((effectDuration(duration)+1)*10)/10);
+}
+root.FocoCore={tokenizeText,groupFor,groupText,sentenceStart,paragraphStart,groupDuration,wordOffsets,offsetWordIndex,clamp,suggestSpeed,effectDuration,effectiveEffectInterval};
 })(typeof globalThis!=='undefined'?globalThis:this);
