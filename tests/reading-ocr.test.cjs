@@ -35,7 +35,7 @@ test('OCR em PDFs digitalizados está incluído localmente no Android',()=>{
  assert.match(ocr,/Tasks\.await\(recognizer\.process/);
  assert.match(ocr,/PdfRenderer/);
  assert.match(ocr,/PDDocument\.load\(pdf\)/);
- assert.match(native,/PdfOcr\.read\(applicationContext, uri\)/);
+ assert.match(native,/PdfOcr\.read\(\s*applicationContext,\s*uri,/);
  assert.match(js,/window\.FocoNativeImportProgress=/);
 });
 test('PDF de 351 páginas sem bloqueio arbitrário',()=>{
