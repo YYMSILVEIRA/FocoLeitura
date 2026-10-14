@@ -174,9 +174,16 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
                     } ?: throw IllegalArgumentException("Não foi possível abrir o PDF.")
                 } else {
                     contentResolver.openInputStream(uri)?.use { input ->
-                        val bytes = input.readNBytes(4_000_001)
-                        if (bytes.size > 4_000_000) throw IllegalArgumentException("Texto acima de 4 MB.")
-                        String(bytes, Charsets.UTF_8)
+                        val output = java.io.ByteArrayOutputStream()
+                        val chunk = ByteArray(8192)
+                        while (true) {
+                            val n = input.read(chunk)
+                            if (n < 0) break
+                            if (output.size() + n > 4_000_000)
+                                throw IllegalArgumentException("Texto acima de 4 MB.")
+                            output.write(chunk, 0, n)
+                        }
+                        String(output.toByteArray(), Charsets.UTF_8)
                     } ?: throw IllegalArgumentException("Não foi possível abrir o texto.")
                 }
                 if (content.isBlank()) throw IllegalArgumentException("Arquivo sem texto legível; PDFs digitalizados precisam de OCR.")
