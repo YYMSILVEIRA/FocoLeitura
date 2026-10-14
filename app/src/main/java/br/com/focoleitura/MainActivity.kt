@@ -6,8 +6,6 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.OpenableColumns
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
-import com.tom_roush.pdfbox.pdmodel.PDDocument
-import com.tom_roush.pdfbox.text.PDFTextStripper
 import android.os.Build
 import android.os.Bundle
 import android.speech.tts.TextToSpeech
@@ -168,10 +166,18 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
                 val textFile = mime.startsWith("text/", true) ||
                     Regex("(?i).*\\.(txt|md|markdown|html|htm)$").matches(filename)
                 if (!pdf && !textFile) throw IllegalArgumentException("Formato não suportado. Use PDF, TXT, MD ou HTML.")
+                var ocrPages = 0
+                var totalPages = 0
                 val content = if (pdf) {
-                    contentResolver.openInputStream(uri)?.use { input ->
-                        PDDocument.load(input).use { document -> PDFTextStripper().getText(document) }
-                    } ?: throw IllegalArgumentException("Não foi possível abrir o PDF.")
+                    val extracted = PdfOcr.read(applicationContext, uri) { page, total ->
+                        runOnUiThread {
+                            if (!isFinishing && readerResumed && serial == importSerial.get())
+                                webView.evaluateJavascript("window.FocoNativeImportProgress?.($page,$total)", null)
+                        }
+                    }
+                    ocrPages = extracted.ocrPages
+                    totalPages = extracted.totalPages
+                    extracted.text
                 } else {
                     contentResolver.openInputStream(uri)?.use { input ->
                         val output = java.io.ByteArrayOutputStream()
@@ -190,7 +196,7 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
                 if (content.length > 4_000_000) throw IllegalArgumentException("Documento muito extenso (limite 4 milhões de caracteres).")
                 val title = JSONObject.quote(if (pdf) filename.replace(Regex("(?i)\\.pdf$"), "") else filename)
                 val payload = JSONObject.quote(content)
-                val script = if (pdf) "window.FocoLoadNativePdf?.($title,$payload)"
+                val script = if (pdf) "window.FocoLoadNativePdf?.($title,$payload,$ocrPages,$totalPages)"
                     else "window.FocoLoadNativeText?.($title,$payload,'texto-nativo')"
                 dispatchImport(serial, script)
             } catch (e: Exception) {
@@ -268,7 +274,7 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
             try {
                 val available = synth.voices?.firstOrNull { it.name == voiceId }
                 if (available != null) synth.voice = available else synth.language = Locale("pt", "BR")
-                synth.setSpeechRate(rate.toFloat().coerceIn(0.5f, 2f))
+                synth.setSpeechRate(rate.toFloat().coerceIn(0.5f, 4f))
                 synth.setPitch(pitch.toFloat().coerceIn(0.6f, 1.6f))
                 val args = Bundle()
                 args.putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, volume.toFloat().coerceIn(0f, 1f))
