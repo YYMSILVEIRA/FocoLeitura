@@ -36,5 +36,16 @@ function effectiveEffectInterval(interval,duration) {
  const base=Number.isFinite(raw)?Math.min(30,Math.max(8,raw)):10;
  return Math.max(base,Math.ceil((effectDuration(duration)+1)*10)/10);
 }
-root.FocoCore={tokenizeText,groupFor,groupText,sentenceStart,paragraphStart,groupDuration,wordOffsets,offsetWordIndex,clamp,suggestSpeed,effectDuration,effectiveEffectInterval};
+// Estimativa nominal: vozes TTS a 1x pronunciam cerca de 180 PPM.
+// O resultado efetivo varia conforme motor, idioma, pontuação e hardware.
+function speechRateForWpm(wpm,voiceFineTune=1,feedback=1){
+ const target=clamp(wpm,60,900),fine=clamp(voiceFineTune,.5,2),correction=clamp(feedback,.65,1.65);
+ return Math.max(.5,Math.min(4,target/180*fine*correction));
+}
+function updatedSpeechFeedback(current,actualMs,targetMs){
+ const elapsed=Number(actualMs),target=Number(targetMs);
+ if(!Number.isFinite(elapsed)||!Number.isFinite(target)||elapsed<=0||target<=0)return clamp(current,.65,1.65);
+ return clamp(Number(current||1)*Math.pow(elapsed/target,.18),.65,1.65);
+}
+root.FocoCore={tokenizeText,groupFor,groupText,sentenceStart,paragraphStart,groupDuration,wordOffsets,offsetWordIndex,clamp,suggestSpeed,effectDuration,effectiveEffectInterval,speechRateForWpm,updatedSpeechFeedback};
 })(typeof globalThis!=='undefined'?globalThis:this);
