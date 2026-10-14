@@ -40,6 +40,7 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
     private val importSerial = AtomicInteger(0)
     private var readerResumed = false
     private var pendingImport: Pair<Int, String>? = null
+    @Volatile private var pendingNativeText: Pair<Int, String>? = null
     private val baseUrl = "https://appassets.androidplatform.net/assets/index.html"
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -155,6 +156,7 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
     private fun importNativeDocument(uri: Uri) {
         val serial = importSerial.incrementAndGet()
         pendingImport = null
+        pendingNativeText = null
         Thread {
             try {
                 var filename = "Documento"
@@ -169,12 +171,16 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
                 var ocrPages = 0
                 var totalPages = 0
                 val content = if (pdf) {
-                    val extracted = PdfOcr.read(applicationContext, uri) { page, total ->
-                        runOnUiThread {
-                            if (!isFinishing && readerResumed && serial == importSerial.get())
-                                webView.evaluateJavascript("window.FocoNativeImportProgress?.($page,$total)", null)
-                        }
-                    }
+                    val extracted = PdfOcr.read(
+                        applicationContext, uri,
+                        progress = { page, total ->
+                            runOnUiThread {
+                                if (!isFinishing && readerResumed && serial == importSerial.get())
+                                    webView.evaluateJavascript("window.FocoNativeImportProgress?.($page,$total)", null)
+                            }
+                        },
+                        shouldCancel = { serial != importSerial.get() || Thread.currentThread().isInterrupted }
+                    )
                     ocrPages = extracted.ocrPages
                     totalPages = extracted.totalPages
                     extracted.text
@@ -194,11 +200,11 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
                 }
                 if (content.isBlank()) throw IllegalArgumentException("Arquivo sem texto legível; PDFs digitalizados precisam de OCR.")
                 if (content.length > 4_000_000) throw IllegalArgumentException("Documento muito extenso (limite 4 milhões de caracteres).")
+                if (serial != importSerial.get()) return@Thread
+                pendingNativeText = serial to content
                 val title = JSONObject.quote(if (pdf) filename.replace(Regex("(?i)\\.pdf$"), "") else filename)
-                val payload = JSONObject.quote(content)
-                val script = if (pdf) "window.FocoLoadNativePdf?.($title,$payload,$ocrPages,$totalPages)"
-                    else "window.FocoLoadNativeText?.($title,$payload,'texto-nativo')"
-                dispatchImport(serial, script)
+                // A mensagem enviada à WebView contém apenas metadados; texto por blocos.
+                dispatchImport(serial, "window.FocoNativeImportReady?.($serial,$title,$pdf,$ocrPages,$totalPages,${content.length})")
             } catch (e: Exception) {
                 dispatchImportError(serial, "Erro ao abrir documento: " + (e.message ?: "arquivo inválido"))
             }
@@ -238,6 +244,29 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
     }
 
     private inner class ReaderFileBridge {
+        @JavascriptInterface
+        fun importChunk(serial: Int, offset: Int, maxLength: Int): String {
+            if (serial != importSerial.get()) return ""
+            val pending = pendingNativeText ?: return ""
+            if (pending.first != serial || offset < 0 || offset >= pending.second.length) return ""
+            val size = maxLength.coerceIn(1, 16_384)
+            return pending.second.substring(offset, (offset.toLong() + size).coerceAtMost(pending.second.length.toLong()).toInt())
+        }
+
+        @JavascriptInterface
+        fun releaseImport(serial: Int): Boolean {
+            if (serial != importSerial.get() || pendingNativeText?.first != serial) return false
+            pendingNativeText = null
+            return true
+        }
+
+        @JavascriptInterface
+        fun cancelImport() {
+            importSerial.incrementAndGet()
+            pendingNativeText = null
+            runOnUiThread { pendingImport = null }
+        }
+
         @JavascriptInterface
         fun openDocument() {
             runOnUiThread {
@@ -308,6 +337,8 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
     }
     override fun onDestroy() {
         chooser?.onReceiveValue(null);chooser=null
+        importSerial.incrementAndGet()
+        pendingNativeText = null
         tts?.stop();tts?.shutdown();tts=null
         webView.destroy()
         super.onDestroy()

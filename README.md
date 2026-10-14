@@ -50,8 +50,12 @@ O botão **Trocar documento** no leitor (inclusive no Modo Foco) abre o seletor 
 
 ## OCR local para PDF digitalizado
 
-O leitor agora tenta extrair texto por página. Se uma página contiver somente uma imagem, ela é renderizada pelo Android e reconhecida pelo **ML Kit Text Recognition, modelo Latin incluído no APK**. Não usa Gemini nem envia o PDF para servidores, inclusive quando o documento vem do cartão SD. O processo é automático, pode levar algum tempo e tem limites de 150 páginas, 50 MB de arquivo e 4 milhões de caracteres extraídos. A qualidade do resultado depende da nitidez e do idioma; confirme a prévia antes de iniciar a leitura. O OCR funciona no aplicativo Android; a versão web continua com o extrator limitado.
+O leitor agora tenta extrair texto por página. Se uma página contiver somente uma imagem, ela é renderizada pelo Android e reconhecida pelo **ML Kit Text Recognition, modelo Latin incluído no APK**. Não usa Gemini nem envia o PDF para servidores, inclusive quando o documento vem do cartão SD. O processo é automático, pode levar algum tempo e não impõe um limite fixo de páginas, mas preserva os limites de 50 MB de arquivo e 4 milhões de caracteres extraídos. A qualidade do resultado depende da nitidez e do idioma; confirme a prévia antes de iniciar a leitura. O OCR funciona no aplicativo Android; a versão web continua com o extrator limitado.
 
 ## Sincronização do áudio com PPM
 
 O valor escolhido no controle de PPM define o ritmo-alvo da leitura também ao ativar a voz. A taxa de TTS é calculada com uma referência nominal de 180 palavras/minuto em 1×, recebe um ajuste gradual conforme o tempo de cada trecho e é limitada à faixa suportada no app, de 0,5× a 4×. O controle **Ajuste fino da voz** funciona como multiplicador. A leitura só muda de grupo depois de a voz terminar e, se a fala for rápida demais, espera o restante do tempo. Não há garantia de atingir valores muito altos de PPM, pois cada sintetizador tem suas próprias limitações.
+
+### Importação de PDFs longos (2.4.1)
+
+Removido o limite arbitrário de 150 páginas: o OCR percorre também PDFs de 351 páginas ou mais, uma página de cada vez. Mostra progresso percentual e permite cancelar, sem substituir a leitura atual. Textos grandes são enviados à interface em blocos de até 16.384 caracteres, evitando uma chamada JavaScript gigante. O aparelho precisa de memória e espaço temporário suficientes; os limites de tamanho do arquivo e do texto extraído continuam valendo.

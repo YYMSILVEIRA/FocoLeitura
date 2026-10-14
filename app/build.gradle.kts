@@ -6,8 +6,8 @@ android {
         applicationId = "br.com.focoleitura"
         minSdk = 26
         targetSdk = 35
-        versionCode = 5
-        versionName = "2.4.0"
+        versionCode = 6
+        versionName = "2.4.1"
     }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     kotlinOptions { jvmTarget = "17" }

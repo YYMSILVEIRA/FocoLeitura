@@ -38,3 +38,17 @@ test('OCR em PDFs digitalizados está incluído localmente no Android',()=>{
  assert.match(native,/PdfOcr\.read\(applicationContext, uri\)/);
  assert.match(js,/window\.FocoNativeImportProgress=/);
 });
+test('PDF de 351 páginas sem bloqueio arbitrário',()=>{
+ assert.doesNotMatch(ocr,/MAX_PAGES/);
+ assert.match(ocr,/for \(page in 1\.\.pages\)/);
+ assert.match(ocr,/shouldCancel/);
+ assert.match(native,/shouldCancel = \{ serial != importSerial\.get\(\)/);
+});
+test('transfere conteúdo em blocos e permite cancelar',()=>{
+ assert.match(native,/fun importChunk\(serial: Int, offset: Int, maxLength: Int\)/);
+ assert.match(native,/fun releaseImport\(serial: Int\): Boolean/);
+ assert.match(native,/window\.FocoNativeImportReady/);
+ assert.match(js,/window\.FocoNativeImportReady=async/);
+ assert.match(js,/AndroidFiles\.importChunk\(serial,start,16384\)/);
+ assert.match(js,/AndroidFiles\.cancelImport\(\)/);
+});

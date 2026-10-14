@@ -26,9 +26,8 @@ object PdfOcr {
     data class Result(val text: String, val totalPages: Int, val ocrPages: Int)
     private const val MAX_FILE_BYTES = 50L * 1024L * 1024L
     private const val MAX_TEXT_CHARS = 4_000_000
-    private const val MAX_PAGES = 150
 
-    fun read(context: Context, uri: Uri, progress: (Int, Int) -> Unit): Result {
+    fun read(context: Context, uri: Uri, progress: (Int, Int) -> Unit, shouldCancel: () -> Boolean = { false }): Result {
         val pdf = File.createTempFile("focoleitura_import_", ".pdf", context.cacheDir)
         try {
             context.contentResolver.openInputStream(uri)?.use { input ->
@@ -36,6 +35,7 @@ object PdfOcr {
                     val buffer = ByteArray(64 * 1024)
                     var copied = 0L
                     while (true) {
+                        if (shouldCancel()) throw java.util.concurrent.CancellationException("Importação interrompida")
                         val n = input.read(buffer)
                         if (n < 0) break
                         copied += n
@@ -53,13 +53,11 @@ object PdfOcr {
                 PDDocument.load(pdf).use { doc ->
                     val pages = doc.numberOfPages
                     if (pages == 0) throw IllegalArgumentException("PDF vazio.")
-                    if (pages > MAX_PAGES) {
-                        throw IllegalArgumentException("O PDF possui $pages páginas (máximo: $MAX_PAGES por importação). Divida em partes.")
-                    }
                     val out = StringBuilder()
                     var ocrCount = 0
                     val stripper = PDFTextStripper()
                     for (page in 1..pages) {
+                        if (shouldCancel()) throw java.util.concurrent.CancellationException("Importação interrompida")
                         progress(page, pages)
                         stripper.startPage = page
                         stripper.endPage = page
@@ -71,6 +69,7 @@ object PdfOcr {
                             }
                             if (ocr == null) ocr = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
                             pageText = recognizePage(renderer!!, page - 1, ocr!!).trim()
+                            if (shouldCancel()) throw java.util.concurrent.CancellationException("Importação interrompida")
                             if (pageText.isNotBlank()) ocrCount++
                         }
                         if (pageText.isNotEmpty()) {

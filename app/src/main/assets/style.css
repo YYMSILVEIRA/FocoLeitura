@@ -19,3 +19,5 @@
 /* Transições rápidas: nunca alterar a luminosidade do fundo; destaque de texto limitado. */
 .effect-soft.effect-quick.effect-on{background-color:var(--reader-bg)}
 .effect-soft.effect-quick.effect-on #wordText{color:color-mix(in srgb,var(--reader-text) 97%,var(--reader-accent) 3%);text-shadow:none}
+
+#importProgressWrap{margin:12px 0}#importProgress{width:100%;height:20px;accent-color:var(--accent)}#cancelImport{margin-bottom:10px}
