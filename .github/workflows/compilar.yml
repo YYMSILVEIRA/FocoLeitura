@@ -44,6 +44,8 @@ jobs:
         run: node --test tests/effects.test.cjs
       - name: Validar troca de documentos
         run: node --test tests/import-flow.test.cjs
+      - name: Testar OCR e ritmo vocal
+        run: node --test tests/reading-ocr.test.cjs
       - name: Compilar APK Android
         run: ./gradlew --no-daemon --stacktrace :app:assembleDebug
       - name: Publicar APK
