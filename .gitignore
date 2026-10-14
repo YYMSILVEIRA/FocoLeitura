@@ -1,0 +1,20 @@
+# Gradle / Android
+.gradle/
+build/
+app/build/
+local.properties
+.idea/
+*.iml
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Chaves privadas e dados locais
+*.jks
+*.keystore
+*.key
+*.p12
+
+# Sistema
+.DS_Store
+Thumbs.db
