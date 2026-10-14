@@ -163,7 +163,7 @@ jobs:
           DOCS
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add app build.gradle.kts settings.gradle.kts gradle.properties gradle gradlew gradlew.bat .github/workflows/compilar.yml README.md .gitignore
+          git add app build.gradle.kts settings.gradle.kts gradle.properties gradle gradlew gradlew.bat README.md .gitignore
           git rm -f FocoLeitura_2_Projeto_Android.zip scripts/apply_focoleitura_fixes.py
           git commit -m 'Organizar fontes Android e build direto pelo Gradle Wrapper'
           git push origin HEAD:main
