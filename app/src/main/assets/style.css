@@ -6,6 +6,9 @@
 /* Ajustes 2.1: saída sempre acessível mesmo em Modo Foco/tela cheia. */
 [hidden]{display:none!important}
 .focus-exit{position:absolute;top:12px;right:12px;z-index:20;background:#172a45;color:#fff;border:2px solid #80d5e4;box-shadow:0 1px 8px #0008;min-width:118px;min-height:48px}
+.swap-document{position:absolute;bottom:10px;left:12px;z-index:20;background:#172a45;color:#fff;border:1px solid #65aebc;min-height:44px;font-size:12px}
+.reading:fullscreen .swap-document{bottom:max(12px,env(safe-area-inset-bottom));left:max(12px,env(safe-area-inset-left))}
+
 .reading:fullscreen .focus-exit{top:max(12px,env(safe-area-inset-top));right:max(12px,env(safe-area-inset-right))}
 .document-preview{max-height:33dvh;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;user-select:text;background:#0c1627;padding:13px;border:1px solid #405573;border-radius:12px;line-height:1.55;color:#edf5ff}
 .effect-soft{transition:background-color var(--effect-duration,3.3s) ease}

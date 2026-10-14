@@ -43,3 +43,7 @@ O histórico do Git preserva o ZIP legado e o antigo script de patch, que **não
 ## Duração das transições visuais
 
 Em **Configurações → Estímulo visual dinâmico**, é possível ajustar o tempo da mudança de cor entre **0,1 e 10 segundos** (barra deslizante ou valor numérico). A preferência fica salva localmente, inclusive quando o modo de efeitos estiver desligado. O intervalo entre mudanças permanece independente e respeita um mínimo de 8 segundos; quando a duração é longa, o intervalo efetivo aumenta para que a transição termine. Abaixo de 1 segundo, apenas uma alteração discreta de cor do texto é permitida, sem mudança do fundo. O consentimento para os efeitos continua obrigatório a cada documento e a preferência do sistema por movimento reduzido desativa os efeitos.
+
+## Trocar arquivo no Android
+
+O botão **Trocar documento** no leitor (inclusive no Modo Foco) abre o seletor nativo Android, que lê PDFs e textos de armazenamento interno ou cartão SD usando a URI fornecida pelo sistema. O caminho do input HTML também usa esse seletor. Cancelar não troca a leitura; o progresso anterior é salvo antes da substituição visual e continua disponível na biblioteca. Não é necessário acesso amplo ao armazenamento.

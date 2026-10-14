@@ -25,6 +25,7 @@ import androidx.webkit.WebViewAssetLoader
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.Locale
+import java.util.concurrent.atomic.AtomicInteger
 
 /** Empacotamento Android do motor RSVP da versão anterior, com TTS NATIVO.
  *  A UI e o armazenamento IndexedDB são locais; não há conta/servidor.
@@ -38,6 +39,9 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
     private val backupSaveRequest = 1032
     private val nativeOpenRequest = 1033
     private var pendingBackupJson: String? = null
+    private val importSerial = AtomicInteger(0)
+    private var readerResumed = false
+    private var pendingImport: Pair<Int, String>? = null
     private val baseUrl = "https://appassets.androidplatform.net/assets/index.html"
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -73,12 +77,13 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
                 chooser?.onReceiveValue(null)
                 chooser = filePathCallback
                 return try {
-                    @Suppress("DEPRECATION")
-                    startActivityForResult(fileChooserParams?.createIntent() ?: Intent(Intent.ACTION_OPEN_DOCUMENT)
-                        .apply { type = "*/*"; addCategory(Intent.CATEGORY_OPENABLE) }, fileChooserRequest)
+                    openDocumentPicker(fileChooserRequest)
                     true
-                } catch (_: ActivityNotFoundException) {
-                    chooser?.onReceiveValue(null); chooser = null; false
+                } catch (e: Exception) {
+                    chooser?.onReceiveValue(null)
+                    chooser = null
+                    dispatchImportError(importSerial.get(), "Falha ao abrir seletor: " + (e.message ?: "erro"))
+                    true
                 }
             }
         }
@@ -109,28 +114,49 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
             }
             return
         }
-        if (requestCode == nativeOpenRequest) {
-            if (resultCode == RESULT_OK && data?.data != null) importNativeDocument(data.data!!)
-            return
+        if (requestCode != nativeOpenRequest && requestCode != fileChooserRequest) return
+        if (requestCode == fileChooserRequest) {
+            val current = chooser
+            chooser = null
+            current?.onReceiveValue(null)
         }
-        if (requestCode != fileChooserRequest) return
         val uri = if (resultCode == RESULT_OK) data?.data else null
-        var extensionIsPdf = false
-        if (uri != null) contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
-            if (cursor.moveToFirst()) extensionIsPdf = (cursor.getString(0) ?: "").lowercase(Locale.ROOT).endsWith(".pdf")
+        if (uri != null) importNativeDocument(uri)
+    }
+
+    private fun openDocumentPicker(requestCode: Int) {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            // Alguns cartões SD declaram PDFs e textos como application/octet-stream.
+            type = "*/*"
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-        val pdf = uri != null && (contentResolver.getType(uri) == "application/pdf" || extensionIsPdf)
-        if (pdf && uri != null) {
-            chooser?.onReceiveValue(null)
-            chooser = null
-            extractPdfOffline(uri)
-        } else {
-            chooser?.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(resultCode, data))
-            chooser = null
+        @Suppress("DEPRECATION")
+        startActivityForResult(intent, requestCode)
+    }
+
+    private fun dispatchImport(serial: Int, script: String) {
+        runOnUiThread {
+            if (isFinishing || isDestroyed || serial != importSerial.get()) return@runOnUiThread
+            pendingImport = serial to script
+            flushImport()
         }
     }
 
+    private fun dispatchImportError(serial: Int, message: String) {
+        dispatchImport(serial, "window.FocoNativeImportError?.(" + JSONObject.quote(message) + ")")
+    }
+
+    private fun flushImport() {
+        if (!readerResumed || !::webView.isInitialized) return
+        val next = pendingImport ?: return
+        pendingImport = null
+        if (next.first == importSerial.get()) webView.evaluateJavascript(next.second, null)
+    }
+
     private fun importNativeDocument(uri: Uri) {
+        val serial = importSerial.incrementAndGet()
+        pendingImport = null
         Thread {
             try {
                 var filename = "Documento"
@@ -138,44 +164,30 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
                     if (cursor.moveToFirst()) filename = cursor.getString(0) ?: filename
                 }
                 val mime = contentResolver.getType(uri).orEmpty()
-                if (mime == "application/pdf" || filename.lowercase(Locale.ROOT).endsWith(".pdf")) {
-                    extractPdfOffline(uri)
-                    return@Thread
+                val pdf = mime.equals("application/pdf", true) || filename.endsWith(".pdf", true)
+                val textFile = mime.startsWith("text/", true) ||
+                    Regex("(?i).*\\.(txt|md|markdown|html|htm)$").matches(filename)
+                if (!pdf && !textFile) throw IllegalArgumentException("Formato não suportado. Use PDF, TXT, MD ou HTML.")
+                val content = if (pdf) {
+                    contentResolver.openInputStream(uri)?.use { input ->
+                        PDDocument.load(input).use { document -> PDFTextStripper().getText(document) }
+                    } ?: throw IllegalArgumentException("Não foi possível abrir o PDF.")
+                } else {
+                    contentResolver.openInputStream(uri)?.use { input ->
+                        val bytes = input.readNBytes(4_000_001)
+                        if (bytes.size > 4_000_000) throw IllegalArgumentException("Texto acima de 4 MB.")
+                        String(bytes, Charsets.UTF_8)
+                    } ?: throw IllegalArgumentException("Não foi possível abrir o texto.")
                 }
-                if (!Regex("(?i).*\\.(txt|md|markdown|html|htm)$").matches(filename) && !mime.startsWith("text/")) {
-                    throw IllegalArgumentException("Formato não suportado. Selecione PDF, TXT, MD ou HTML.")
-                }
-                val bytes = contentResolver.openInputStream(uri)?.use { input -> input.readBytes() }
-                    ?: throw IllegalArgumentException("Não foi possível abrir arquivo")
-                if (bytes.size > 4_000_000) throw IllegalArgumentException("Texto maior que 4 MB; divida o arquivo.")
-                val safeTitle = JSONObject.quote(filename)
-                val safeText = JSONObject.quote(String(bytes, Charsets.UTF_8))
-                runOnUiThread { webView.evaluateJavascript("window.FocoLoadNativeText?.($safeTitle,$safeText,'texto-nativo')", null) }
+                if (content.isBlank()) throw IllegalArgumentException("Arquivo sem texto legível; PDFs digitalizados precisam de OCR.")
+                if (content.length > 4_000_000) throw IllegalArgumentException("Documento muito extenso (limite 4 milhões de caracteres).")
+                val title = JSONObject.quote(if (pdf) filename.replace(Regex("(?i)\\.pdf$"), "") else filename)
+                val payload = JSONObject.quote(content)
+                val script = if (pdf) "window.FocoLoadNativePdf?.($title,$payload)"
+                    else "window.FocoLoadNativeText?.($title,$payload,'texto-nativo')"
+                dispatchImport(serial, script)
             } catch (e: Exception) {
-                val message = JSONObject.quote("Erro ao abrir documento: " + (e.message ?: "Arquivo inválido"))
-                runOnUiThread { webView.evaluateJavascript("window.FocoNativeImportError?.($message)", null) }
-            }
-        }.start()
-    }
-
-    private fun extractPdfOffline(uri: Uri) {
-        Thread {
-            try {
-                var title = "Documento PDF"
-                contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
-                    if (cursor.moveToFirst()) title = cursor.getString(0) ?: title
-                }
-                val text = contentResolver.openInputStream(uri)?.use { input ->
-                    PDDocument.load(input).use { pdf -> PDFTextStripper().getText(pdf) }
-                } ?: throw IllegalArgumentException("Não foi possível abrir o PDF.")
-                if (text.isBlank()) throw IllegalArgumentException("PDF sem texto selecionável. OCR offline ainda não está disponível.")
-                if (text.length > 4_000_000) throw IllegalArgumentException("Documento muito extenso para importação de uma só vez (limite: 4 milhões de caracteres).")
-                val safeTitle = JSONObject.quote(title.removeSuffix(".pdf"))
-                val safeText = JSONObject.quote(text)
-                runOnUiThread { webView.evaluateJavascript("window.FocoLoadNativePdf?.($safeTitle,$safeText)", null) }
-            } catch (e: Exception) {
-                val msg = JSONObject.quote("Erro ao extrair PDF localmente: " + (e.message ?: "PDF inválido"))
-                runOnUiThread { webView.evaluateJavascript("window.FocoNativeImportError?.($msg)", null) }
+                dispatchImportError(serial, "Erro ao abrir documento: " + (e.message ?: "arquivo inválido"))
             }
         }.start()
     }
@@ -217,14 +229,7 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
         fun openDocument() {
             runOnUiThread {
                 try {
-                    val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-                        addCategory(Intent.CATEGORY_OPENABLE)
-                        type = "*/*"
-                        putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("application/pdf", "text/plain", "text/html", "text/markdown", "application/octet-stream"))
-                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                    }
-                    @Suppress("DEPRECATION")
-                    startActivityForResult(intent, nativeOpenRequest)
+                    openDocumentPicker(nativeOpenRequest)
                 } catch (e: Exception) {
                     val message = JSONObject.quote("Não foi possível abrir o seletor Android: " + e.message)
                     webView.evaluateJavascript("window.FocoNativeImportError?.($message)", null)
@@ -276,12 +281,18 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
     }
 
     override fun onPause() {
+        readerResumed = false
         webView.evaluateJavascript("window.FocoPauseForBackground?.()", null)
         tts?.stop()
         super.onPause()
         webView.onPause()
     }
-    override fun onResume() { super.onResume(); webView.onResume() }
+    override fun onResume() {
+        super.onResume()
+        webView.onResume()
+        readerResumed = true
+        flushImport()
+    }
     override fun onDestroy() {
         chooser?.onReceiveValue(null);chooser=null
         tts?.stop();tts?.shutdown();tts=null
