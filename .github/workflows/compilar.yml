@@ -1,174 +1,46 @@
-name: Organizar projeto Android (migração única)
+name: Compilar FocoLeitura Android
 
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches:
+      - main
+    paths:
+      - 'app/**'
+      - 'gradle/**'
+      - 'gradlew'
+      - 'gradlew.bat'
+      - '*.gradle.kts'
+      - 'gradle.properties'
+      - '.github/workflows/compilar.yml'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  migrar:
+  build:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - name: Baixar repositório
+      - name: Baixar código-fonte
         uses: actions/checkout@v4
-      - name: Extrair ZIP legado
-        run: |
-          mkdir -p projeto
-          unzip -q FocoLeitura_2_Projeto_Android.zip -d projeto
-          test -f projeto/settings.gradle.kts
-      - name: Aplicar últimas correções
-        run: |
-          python3 scripts/apply_focoleitura_fixes.py projeto
-          node --check projeto/app/src/main/assets/app.js
       - name: Configurar Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-      - name: Preparar Android SDK
+      - name: Configurar Android SDK
         uses: android-actions/setup-android@v4
-      - name: Instalar Android 35
+      - name: Instalar Android API 35
         run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
-      - name: Preparar Gradle 8.9
+      - name: Cache Gradle
         uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.9'
-      - name: Consolidar fontes e salvar no GitHub
+      - name: Validar código JavaScript
         run: |
-          set -euo pipefail
-          cp -a projeto/app ./app
-          cp projeto/build.gradle.kts projeto/settings.gradle.kts projeto/gradle.properties ./
-          gradle wrapper --gradle-version 8.9 --distribution-type bin
-          chmod +x gradlew
-          cat > .github/workflows/compilar.yml <<'WORKFLOW'
-          name: Compilar FocoLeitura Android
-          
-          on:
-            workflow_dispatch:
-            push:
-              branches:
-                - main
-              paths:
-                - 'app/**'
-                - 'gradle/**'
-                - 'gradlew'
-                - 'gradlew.bat'
-                - '*.gradle.kts'
-                - 'gradle.properties'
-                - '.github/workflows/compilar.yml'
-          
-          permissions:
-            contents: read
-          
-          jobs:
-            build:
-              runs-on: ubuntu-latest
-              timeout-minutes: 30
-              steps:
-                - name: Baixar código-fonte
-                  uses: actions/checkout@v4
-                - name: Configurar Java 17
-                  uses: actions/setup-java@v4
-                  with:
-                    distribution: temurin
-                    java-version: '17'
-                - name: Configurar Android SDK
-                  uses: android-actions/setup-android@v4
-                - name: Instalar Android API 35
-                  run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
-                - name: Cache Gradle
-                  uses: gradle/actions/setup-gradle@v4
-                - name: Validar código JavaScript
-                  run: |
-                    node --check app/src/main/assets/app.js
-                    node --check app/src/main/assets/core.js
-                    node --check app/src/main/assets/pdf-compat.js
-                - name: Compilar APK Android
-                  run: ./gradlew --no-daemon --stacktrace :app:assembleDebug
-                - name: Publicar APK
-                  uses: actions/upload-artifact@v4
-                  with:
-                    name: FocoLeitura-APK-debug
-                    path: app/build/outputs/apk/debug/app-debug.apk
-                    if-no-files-found: error
-          WORKFLOW
-          cat > .gitignore <<'GITIGNORE'
-          # Gradle / Android
-          .gradle/
-          build/
-          app/build/
-          local.properties
-          .idea/
-          *.iml
-          captures/
-          .externalNativeBuild/
-          .cxx/
-          
-          # Chaves privadas e dados locais
-          *.jks
-          *.keystore
-          *.key
-          *.p12
-          
-          # Sistema
-          .DS_Store
-          Thumbs.db
-          GITIGNORE
-          cat > README.md <<'DOCS'
-          # FocoLeitura — Android
-          
-          Leitor RSVP audiovisual offline para Android, com importação de PDF e texto, narração nativa (TTS), configurações de foco, prévia dos documentos e efeitos visuais suaves sujeitos a consentimento.
-          
-          ## Organização
-          
-          - `app/src/main/java/br/com/focoleitura/MainActivity.kt`: Activity Android, seletor de arquivos, PDF e TTS.
-          - `app/src/main/assets/`: interface e motor de leitura preservados (JavaScript/CSS/HTML).
-          - `app/src/main/AndroidManifest.xml`: configurações do app Android.
-          - `app/build.gradle.kts`: dependências e configuração do módulo Android.
-          - `build.gradle.kts` / `settings.gradle.kts`: configuração Gradle.
-          - `gradle/wrapper/`, `gradlew`, `gradlew.bat`: Gradle Wrapper 8.9.
-          - `.github/workflows/compilar.yml`: compilação de APK a partir do **código-fonte**.
-          
-          O projeto é Kotlin + WebView com assets locais. Não foi migrado para Compose, para evitar perder funcionalidades existentes. As atualizações devem modificar os arquivos acima diretamente, sem ZIP intermediário e sem scripts de substituição.
-          
-          ## Compilar
-          
-          No GitHub: **Actions → Compilar FocoLeitura Android → Run workflow**. Após concluir, baixar o artefato `FocoLeitura-APK-debug`, extrair `app-debug.apk` e instalar.
-          
-          Em um ambiente com JDK 17 e Android SDK API 35:
-          
-          ```sh
-          ./gradlew :app:assembleDebug
-          ```
-          
-          O resultado estará em `app/build/outputs/apk/debug/app-debug.apk`.
-          
-          ## Dados e atualizações
-          
-          O aplicativo armazena documentos, configurações e progresso localmente (WebView/IndexedDB). Mantenha o mesmo `applicationId` (`br.com.focoleitura`) e utilize a **mesma chave de assinatura** para atualizações instaladas sobre outra versão. APKs de depuração gerados em máquinas diferentes podem ter chaves distintas; faça backup pelo aplicativo antes de reinstalar.
-          
-          Não há servidor próprio ou envio automático dos documentos. O OCR de PDF digitalizado e a validação completa em aparelho físico continuam pendentes.
-          
-          ## Segurança visual
-          
-          A apresentação utiliza transições suaves e opcionais: não oferece flashes estroboscópicos rápidos. O modo com efeitos exige confirmação por documento e todos os efeitos começam desativados.
-          
-          ## Manutenção
-          
-          O histórico do Git preserva o ZIP legado e o antigo script de patch, que **não são mais necessários** na branch atual. Para novas alterações, edite os arquivos fonte e valide a execução do Actions.
-          DOCS
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add app build.gradle.kts settings.gradle.kts gradle.properties gradle gradlew gradlew.bat README.md .gitignore
-          git rm -f FocoLeitura_2_Projeto_Android.zip scripts/apply_focoleitura_fixes.py
-          git commit -m 'Organizar fontes Android e build direto pelo Gradle Wrapper'
-          git push origin HEAD:main
-          echo 'Código migrado e publicado em main.'
-      - name: Validar compilação da estrutura consolidada
+          node --check app/src/main/assets/app.js
+          node --check app/src/main/assets/core.js
+          node --check app/src/main/assets/pdf-compat.js
+      - name: Compilar APK Android
         run: ./gradlew --no-daemon --stacktrace :app:assembleDebug
       - name: Publicar APK
         uses: actions/upload-artifact@v4
